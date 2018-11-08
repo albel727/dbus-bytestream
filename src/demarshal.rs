@@ -286,7 +286,7 @@ pub fn demarshal(buf: &mut Vec<u8>, offset: &mut usize, sig: &mut String) -> Res
 mod test {
     use marshal::Marshal;
     use demarshal::demarshal;
-    use dbus_serialize::types::{Value,BasicValue,Signature};
+    use dbus_serialize::types::{Value,BasicValue,Signature,Array};
 
     #[test]
     fn test_demarshal_u32() {
@@ -395,5 +395,47 @@ mod test {
             _ => panic!("Bad return from demarshal {:?}", v)
         };
         assert_eq!(s.signature, Signature("(ss)".to_string()));
+    }
+
+    fn test_array_in_struct(y: Vec<u32>) {
+        let mut buf = Vec::new();
+        let x = "swalter".to_string();
+        let mut sig = "(saus)".to_string();
+        x.dbus_encode(&mut buf);
+        y.dbus_encode(&mut buf);
+        x.dbus_encode(&mut buf);
+
+        let mut offset = 0;
+        let v = demarshal(&mut buf, &mut offset, &mut sig).unwrap();
+        assert_eq!(buf.len(), 0);
+        assert_eq!(sig, "");
+        let s = match v {
+            Value::Struct(x) => x,
+            _ => panic!("Bad return from demarshal {:?}", v)
+        };
+
+        let golden = vec![
+            Value::BasicValue(BasicValue::String(x.clone())),
+            Value::Array(
+                Array::new_with_sig(
+                    y.iter().map(|&e| Value::BasicValue(BasicValue::Uint32(e))).collect(),
+                    "au".to_string()
+                )
+            ),
+            Value::BasicValue(BasicValue::String(x.clone())),
+        ];
+
+        assert_eq!(s.objects, golden);
+        assert_eq!(s.signature, Signature("(saus)".to_string()));
+    }
+
+    #[test]
+    fn test_nonempty_array_in_struct() {
+        test_array_in_struct(vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_empty_array_in_struct() {
+        test_array_in_struct(vec![]);
     }
 }
