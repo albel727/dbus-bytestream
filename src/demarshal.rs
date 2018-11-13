@@ -182,17 +182,22 @@ fn demarshal_array(buf: &mut Vec<u8>, offset: &mut usize, sig: &mut String) -> R
 
     let mut vec = Vec::new();
     let start_offset = *offset;
-    let mut sig_copy = "".to_owned();
+
+    let mysig_size = complete_type_size(&mut sig.chars().peekable());
+    let mysig_size = try!(mysig_size.map_err(|_| DemarshalError::BadSignature));
+
+    //TODO: use String::split_off() if Rust 1.16.0 is ok
+    let mut mysig = sig[0..mysig_size].to_owned();
+
     while *offset < start_offset+(array_len as usize) {
         // We want to pass the same signature to each call of demarshal
-        sig_copy = sig.to_owned();
+        let mut sig_copy = mysig.to_owned();
         vec.push(try!(demarshal(buf, offset, &mut sig_copy)));
+        debug_assert_eq!(sig_copy.len(), 0);
     }
     // Now that we're done with our elements we can forget the elements consumed by demarshal
-    let mut mysig = sig.clone();
-    mysig.truncate(sig.len() - sig_copy.len());
     mysig.insert(0, 'a');
-    *sig = sig_copy;
+    *sig = sig[mysig_size..].to_owned();
 
     if is_dict {
         let mut map : HashMap<BasicValue,Value> = HashMap::new();
@@ -257,6 +262,43 @@ fn demarshal_variant(buf: &mut Vec<u8>, offset: &mut usize) -> Result<Value,Dema
         object: Box::new(var),
         signature: sig
     }))
+}
+
+fn complete_type_size<I: Iterator<Item=char>>(sig: &mut std::iter::Peekable<I>) -> Result<usize, &'static str> {
+    let typ = sig.next();
+    if typ.is_none() {
+        return Err("Complete type expected, empty signature found.");
+    }
+    let typ = typ.unwrap();
+
+    match typ {
+        'y' | 'b' | 'n' | 'q' | 'i' | 'u' | 'x' | 't' | 's' | 'o' | 'g' | 'v' => Ok(1),
+        'a' => Ok(1 + try!(complete_type_size(sig))),
+        '(' => {
+            let mut len = 0;
+            while let Some(&typ) = sig.peek() {
+                if typ == ')' {
+                    sig.next();
+                    if len == 0 {
+                        return Err("Empty struct found.")
+                    }
+                    return Ok(2 + len);
+                }
+                len += try!(complete_type_size(sig));
+            }
+            Err("Couldn't find struct closing parenthesis in signature.")
+        },
+        '{' => {
+            let len = try!(complete_type_size(sig));
+            let len2 = try!(complete_type_size(sig));
+            if Some(&'}') != sig.peek() {
+                return Err("Couldn't find dictentry closing parenthesis in signature.")
+            }
+            sig.next();
+            Ok(2 + len + len2)
+        },
+        _ => Err("Unexpected char in signature.")
+    }
 }
 
 pub fn demarshal(buf: &mut Vec<u8>, offset: &mut usize, sig: &mut String) -> Result<Value,DemarshalError> {
