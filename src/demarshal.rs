@@ -233,6 +233,11 @@ fn demarshal_struct(buf: &mut Vec<u8>, offset: &mut usize, sig: &mut String) -> 
             None => return Err(DemarshalError::MismatchedParens)
         };
         if typ == ')' {
+            mysig.insert(0, '(');
+            sig.remove(0);
+            break;
+        } else if typ == '}' {
+            mysig.insert(0, '{');
             sig.remove(0);
             break;
         }
@@ -241,7 +246,6 @@ fn demarshal_struct(buf: &mut Vec<u8>, offset: &mut usize, sig: &mut String) -> 
     // Only keep the characters that were consumed by demarshal
     let oldlen = mysig.len();
     mysig.truncate(oldlen - sig.len());
-    mysig.insert(0, '(');
 
     Ok(Value::Struct(Struct{
         objects: vec,
