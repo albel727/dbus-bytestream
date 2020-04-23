@@ -7,8 +7,24 @@ use dbus_serialize::types::{Path,Variant,Value,BasicValue,Signature};
 use marshal::{Marshal,pad_to_multiple};
 use demarshal::{demarshal,DemarshalError};
 
-#[derive(Debug,Default,PartialEq,Eq)]
+#[derive(Default,PartialEq,Eq)]
 pub struct MessageType(pub u8);
+
+impl ::std::fmt::Debug for MessageType {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        let mut debug_trait_builder = f.debug_tuple("MessageType");
+        match *self {
+            MESSAGE_TYPE_INVALID => debug_trait_builder.field(&"INVALID"),
+            MESSAGE_TYPE_METHOD_CALL => debug_trait_builder.field(&"METHOD_CALL"),
+            MESSAGE_TYPE_METHOD_RETURN => debug_trait_builder.field(&"METHOD_RETURN"),
+            MESSAGE_TYPE_ERROR => debug_trait_builder.field(&"ERROR"),
+            MESSAGE_TYPE_SIGNAL => debug_trait_builder.field(&"SIGNAL"),
+            MessageType(type_id) => debug_trait_builder.field(&type_id),
+        };
+        debug_trait_builder.finish()
+    }
+}
+
 pub const MESSAGE_TYPE_INVALID : MessageType        = MessageType(0);
 pub const MESSAGE_TYPE_METHOD_CALL : MessageType    = MessageType(1);
 pub const MESSAGE_TYPE_METHOD_RETURN : MessageType  = MessageType(2);
@@ -27,11 +43,36 @@ pub const HEADER_FIELD_SIGNATURE: u8    = 8;
 
 pub const FLAGS_NO_REPLY_EXPECTED : u8  = 1;
 
-#[derive(Debug)]
 pub struct HeaderField (
     pub u8,
     pub Variant
 );
+
+impl ::std::fmt::Debug for HeaderField {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        let HeaderField(field_id, ref variant) = *self;
+        let mut debug_trait_builder = f.debug_tuple("HeaderField");
+        let desc = match field_id {
+            HEADER_FIELD_INVALID => "INVALID",
+            HEADER_FIELD_PATH => "PATH",
+            HEADER_FIELD_INTERFACE => "INTERFACE",
+            HEADER_FIELD_MEMBER => "MEMBER",
+            HEADER_FIELD_ERROR_NAME => "ERROR_NAME",
+            HEADER_FIELD_REPLY_SERIAL => "REPLY_SERIAL",
+            HEADER_FIELD_DESTINATION => "DESTINATION",
+            HEADER_FIELD_SENDER => "SENDER",
+            HEADER_FIELD_SIGNATURE => "SIGNATURE",
+            _ => "",
+        };
+        if !desc.is_empty() {
+            debug_trait_builder.field(&desc);
+        } else {
+            debug_trait_builder.field(&field_id);
+        }
+        let _ = debug_trait_builder.field(variant);
+        debug_trait_builder.finish()
+    }
+}
 
 impl Marshal for HeaderField {
     fn dbus_encode(&self, buf: &mut Vec<u8>) -> usize {
