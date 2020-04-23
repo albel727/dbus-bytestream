@@ -222,14 +222,14 @@ impl Marshal for Struct {
     }
 }
 
-impl<T: Marshal> Marshal for Vec<T> {
+impl<'a, T: Marshal> Marshal for &'a [T] {
     fn dbus_encode(&self, buf: &mut Vec<u8>) -> usize {
         // Encode a length of 0 as a place-holder since we don't know the real length yet
         let mut array_len = 0 as u32;
         array_len.dbus_encode(buf);
         let start_len = buf.len();
         let len_idx = start_len - 4;
-        for x in self {
+        for x in self.iter() {
             x.dbus_encode(buf);
         }
         array_len = (buf.len() - start_len) as u32;
@@ -241,6 +241,15 @@ impl<T: Marshal> Marshal for Vec<T> {
             buf[len_idx+i] = len_buf[i];
         }
         (array_len as usize) + 4
+    }
+    fn get_type(&self) -> String {
+        "a".to_owned() + &(self.iter().next().unwrap().get_type())
+    }
+}
+
+impl<T: Marshal> Marshal for Vec<T> {
+    fn dbus_encode(&self, buf: &mut Vec<u8>) -> usize {
+        Marshal::dbus_encode(&self.as_slice(), buf)
     }
     fn get_type(&self) -> String {
         "a".to_owned() + &(self.iter().next().unwrap().get_type())
